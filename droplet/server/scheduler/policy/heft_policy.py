@@ -24,7 +24,7 @@ from droplet.shared.proto.shared_pb2 import StringSet
 from droplet.server.scheduler.policy.base_policy import (
     BaseDropletSchedulerPolicy
 )
-from droplet.server.scheduler.predictor.cost_predictor import *
+from droplet.server.scheduler.policy.predictor.cost_predictor import *
 from droplet.server.scheduler.utils import (
     get_cache_ip_key,
     get_pin_address,
