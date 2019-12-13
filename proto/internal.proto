@@ -101,3 +101,21 @@ message SchedulerStatus {
   repeated FunctionLocation function_locations = 2;
 }
 
+// An update sent from executors to schedulors for function input size,
+// output size, and runtime.
+message FunctionMeta {
+  // The name of the function.
+  string name = 1;
+
+  // A list of inputs that are references to KVS.
+  repeated string inputRefs = 2;
+
+  // A list of input sizes that have been resolved.
+  repeated uint32 inputSizes = 3;
+
+  // Output size of the function
+  uint32 outputSize = 4;
+
+  // Time it took to execute function
+  double runtime = 5;
+}

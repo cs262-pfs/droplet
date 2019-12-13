@@ -83,25 +83,49 @@ def call_dag(call, pusher_cache, dags, policy):
     if call.client_id:
         schedule.client_id = call.client_id
 
-    for fname in dag.functions:
-        args = call.function_args[fname].values
+    if policy.__class__.__name__ is 'HeftDropletSchedulerPolicy':
+        funcs = {}
+        for fname in dag.functions:
+            args = call.function_args[fname].values
 
-        refs = list(filter(lambda arg: type(arg) == DropletReference,
-                           map(lambda arg: serializer.load(arg), args)))
+            refs = list(filter(lambda arg: type(arg) == DropletReference,
+                               map(lambda arg: serializer.load(arg), args)))
+            funcs[fname] = refs
+        results = policy.pick_executors(funcs, dag)
+        
+        for fname, result in results.items():
+            if result is None:
+                response = GenericResponse()
+                response.success = False
+                response.error = NO_RESOURCES
+                return response
+            ip, tid = result
+            schedule.locations[fname] = ip + ':' + str(tid)
 
-        result = policy.pick_executor(refs, fname)
-        if result is None:
-            response = GenericResponse()
-            response.success = False
-            response.error = NO_RESOURCES
-            return response
+            # copy over arguments into the dag schedule
+            arg_list = schedule.arguments[fname]
+            args = call.function_args[fname].values
+            arg_list.values.extend(args)
+    else:
+        for fname in dag.functions:
+            args = call.function_args[fname].values
 
-        ip, tid = result
-        schedule.locations[fname] = ip + ':' + str(tid)
+            refs = list(filter(lambda arg: type(arg) == DropletReference,
+                               map(lambda arg: serializer.load(arg), args)))
 
-        # copy over arguments into the dag schedule
-        arg_list = schedule.arguments[fname]
-        arg_list.values.extend(args)
+            result = policy.pick_executor(refs, fname)
+            if result is None:
+                response = GenericResponse()
+                response.success = False
+                response.error = NO_RESOURCES
+                return response
+
+            ip, tid = result
+            schedule.locations[fname] = ip + ':' + str(tid)
+
+            # copy over arguments into the dag schedule
+            arg_list = schedule.arguments[fname]
+            arg_list.values.extend(args)
 
     for fname in dag.functions:
         loc = schedule.locations[fname].split(':')

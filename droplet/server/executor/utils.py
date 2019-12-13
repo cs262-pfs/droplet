@@ -66,6 +66,16 @@ def push_status(schedulers, pusher_cache, status):
         sckt = pusher_cache.get(get_status_address(sched))
         sckt.send(msg)
 
+def push_function_meta(schedulers, pusher_cache, meta):
+    msg = meta.SerializeToString()
+
+    for sched in schedulers:
+        sckt = pusher_cache.get(get_func_meta_address(sched))
+        sckt.send(msg)
+
+def get_func_meta_address(ip):
+    return 'tcp://' + ip + ':' + str(sutils.FUNC_META_PORT)
+
 
 def get_status_address(ip):
     return 'tcp://' + ip + ':' + str(sutils.STATUS_PORT)

@@ -26,8 +26,14 @@ from droplet.server.scheduler.create import (
     create_function,
     delete_dag
 )
+from droplet.server.scheduler.predictor.cost_predictor import (
+    CostPredictors
+)
 from droplet.server.scheduler.policy.default_policy import (
     DefaultDropletSchedulerPolicy
+)
+from droplet.server.scheduler.policy.heft_policy import (
+    HeftDropletSchedulerPolicy
 )
 import droplet.server.scheduler.utils as sched_utils
 import droplet.server.utils as sutils
@@ -40,7 +46,8 @@ from droplet.shared.proto.droplet_pb2 import (
 from droplet.shared.proto.internal_pb2 import (
     ExecutorStatistics,
     SchedulerStatus,
-    ThreadStatus
+    ThreadStatus,
+    FunctionMeta
 )
 from droplet.shared.proto.shared_pb2 import StringSet
 from droplet.shared.utils import (
@@ -110,6 +117,9 @@ def scheduler(ip, mgmt_ip, route_addr):
     exec_status_socket = context.socket(zmq.PULL)
     exec_status_socket.bind(sutils.BIND_ADDR_TEMPLATE % (sutils.STATUS_PORT))
 
+    exec_meta_socket = context.socket(zmq.PULL)
+    exec_meta_socket.bind(sutils.BIND_ADDR_TEMPLATE % (sutils.FUNC_META_PORT))
+
     sched_update_socket = context.socket(zmq.PULL)
     sched_update_socket.bind(sutils.BIND_ADDR_TEMPLATE %
                              (sutils.SCHED_UPDATE_PORT))
@@ -132,9 +142,13 @@ def scheduler(ip, mgmt_ip, route_addr):
     poller.register(list_socket, zmq.POLLIN)
     poller.register(exec_status_socket, zmq.POLLIN)
     poller.register(sched_update_socket, zmq.POLLIN)
+    poller.register(exec_meta_socket, zmq.POLLIN)
 
     # Start the policy engine.
-    policy = DefaultDropletSchedulerPolicy(pin_accept_socket, pusher_cache,
+    # policy = DefaultDropletSchedulerPolicy(pin_accept_socket, pusher_cache,
+    #                                        kvs, ip)
+
+    policy = HeftDropletSchedulerPolicy(pin_accept_socket, pusher_cache,
                                            kvs, ip)
     policy.update()
 
@@ -208,6 +222,14 @@ def scheduler(ip, mgmt_ip, route_addr):
             status.ParseFromString(exec_status_socket.recv())
 
             policy.process_status(status)
+
+        if exec_meta_socket in socks and socks[exec_meta_socket] == \
+                zmq.POLLIN:
+            meta = FunctionMeta()
+            meta.ParseFromString(exec_meta_socket.recv())
+            if policy.__class__.__name__ is 'HeftDropletSchedulerPolicy':
+                policy.update_predictor_data(meta.name, meta.inputRefs, 
+                    meta.inputSizes, meta.outputSize, meta.runtime)
 
         if sched_update_socket in socks and socks[sched_update_socket] == \
                 zmq.POLLIN:

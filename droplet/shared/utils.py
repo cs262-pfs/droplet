@@ -32,3 +32,6 @@ DAG_CALL_PORT = 5005
 
 # The port on which DAG deletion requests are made.
 DAG_DELETE_PORT = 5006
+
+# The port on which executors send function execution statistics.
+FUNC_META_PORT = 5015

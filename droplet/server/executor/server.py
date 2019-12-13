@@ -31,6 +31,7 @@ from droplet.shared.proto.droplet_pb2 import DagSchedule, DagTrigger
 from droplet.shared.proto.internal_pb2 import (
     ExecutorStatistics,
     ThreadStatus,
+    FunctionMeta,
 )
 
 REPORT_THRESH = 5
@@ -192,11 +193,11 @@ def executor(ip, mgmt_ip, schedulers, thread_id):
             trkey = (schedule.id, fname)
             if (trkey in received_triggers and (len(received_triggers[trkey])
                                                 == len(schedule.triggers))):
-
+                inputOutput = []
                 exec_dag_function(pusher_cache, client,
                                   received_triggers[trkey],
                                   function_cache[fname], schedule,
-                                  user_library, dag_runtimes, cache)
+                                  user_library, dag_runtimes, cache, inputOutput)
                 user_library.close()
 
                 del received_triggers[trkey]
@@ -206,6 +207,14 @@ def executor(ip, mgmt_ip, schedulers, thread_id):
                 fstart = receive_times[(schedule.id, fname)]
                 runtimes[fname].append(fend - fstart)
                 exec_counts[fname] += 1
+
+                meta = FunctionMeta()
+                meta.name = fname
+                meta.inputRefs.extend(inputOutput[0])
+                meta.inputSizes.extend(inputOutput[1])
+                meta.outputSize = inputOutput[2]
+                meta.runtime = fend - fstart
+                utils.push_function_meta(schedulers, pusher_cache, meta)
 
             elapsed = time.time() - work_start
             event_occupancy['dag_queue'] += elapsed
@@ -231,10 +240,11 @@ def executor(ip, mgmt_ip, schedulers, thread_id):
             if fname in queue and trigger.id in queue[fname]:
                 schedule = queue[fname][trigger.id]
                 if len(received_triggers[key]) == len(schedule.triggers):
+                    inputOutput = []
                     exec_dag_function(pusher_cache, client,
                                       received_triggers[key],
                                       function_cache[fname], schedule,
-                                      user_library, dag_runtimes, cache)
+                                      user_library, dag_runtimes, cache, inputOutput)
                     user_library.close()
 
                     del received_triggers[key]
@@ -244,6 +254,14 @@ def executor(ip, mgmt_ip, schedulers, thread_id):
                     fstart = receive_times[(trigger.id, fname)]
                     runtimes[fname].append(fend - fstart)
                     exec_counts[fname] += 1
+
+                    meta = FunctionMeta()
+                    meta.name = fname
+                    meta.inputRefs.extend(inputOutput[0])
+                    meta.inputSizes.extend(inputOutput[1])
+                    meta.outputSize = inputOutput[2]
+                    meta.runtime = fend - fstart
+                    utils.push_function_meta(schedulers, pusher_cache, meta)
 
             elapsed = time.time() - work_start
             event_occupancy['dag_exec'] += elapsed

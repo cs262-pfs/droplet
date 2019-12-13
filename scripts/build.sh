@@ -27,6 +27,7 @@ touch droplet/shared/proto/__init__.py
 protoc -I=common/proto --python_out=droplet/shared/proto droplet.proto shared.proto
 protoc -I=common/proto --python_out=droplet/shared/proto anna.proto shared.proto causal.proto
 protoc -I=proto --python_out=droplet/shared/proto internal.proto
+protoc -I=../anna/include/proto --python_out=droplet/shared/proto metadata.proto
 
 # NOTE: This is a hack. We have to do this because the protobufs are not
 # packaged properly (in the protobuf definitions). This isn't an issue for C++

@@ -210,15 +210,15 @@ def _resolve_ref_causal(refs, kvs, schedule, key_version_locations,
 
 
 def exec_dag_function(pusher_cache, kvs, triggers, function, schedule,
-                      user_library, dag_runtimes, cache):
+                      user_library, dag_runtimes, cache, sizes=None):
     if schedule.consistency == NORMAL:
         finished = _exec_dag_function_normal(pusher_cache, kvs,
                                              triggers, function, schedule,
-                                             user_library, cache)
+                                             user_library, cache, sizes)
     else:
         finished = _exec_dag_function_causal(pusher_cache, kvs,
                                              triggers, function, schedule,
-                                             user_library)
+                                             user_library, sizes)
 
     # If finished is true, that means that this executor finished the DAG
     # request. We will report the end-to-end latency for this DAG if so.
@@ -245,7 +245,9 @@ def _construct_trigger(sid, fname, result):
 
 
 def _exec_dag_function_normal(pusher_cache, kvs, triggers, function, schedule,
-                              user_lib, cache):
+                              user_lib, cache, sizes=None):
+    if sizes == None:
+        sizes = []
     fname = schedule.target_function
     fargs = list(schedule.arguments[fname].values)
 
@@ -254,6 +256,17 @@ def _exec_dag_function_normal(pusher_cache, kvs, triggers, function, schedule,
         fargs += list(trigger.arguments.values)
 
     fargs = [serializer.load(arg) for arg in fargs]
+    inputRefs = []
+    inputSizes = []
+    for farg in fargs:
+        if type(farg) == DropletReference:
+            inputRefs.append(farg.key)
+        else:
+            inputSizes.append(farg.size * 8)
+    sizes.append(inputRefs)
+    sizes.append(inputSizes)
+    result = _exec_func_normal(kvs, function, fargs, user_lib, cache)
+    sizes.append(result.size * 8)
     result = _exec_func_normal(kvs, function, fargs, user_lib, cache)
 
     is_sink = True
@@ -286,7 +299,9 @@ def _exec_dag_function_normal(pusher_cache, kvs, triggers, function, schedule,
 
 
 def _exec_dag_function_causal(pusher_cache, kvs, triggers, function, schedule,
-                              user_lib):
+                              user_lib, sizes=None):
+    if sizes == None:
+        sizes = []
     fname = schedule.target_function
     fargs = list(schedule.arguments[fname].values)
 
@@ -318,9 +333,19 @@ def _exec_dag_function_causal(pusher_cache, kvs, triggers, function, schedule,
                 dependencies[key] = vc
 
     fargs = [serializer.load(arg) for arg in fargs]
+    inputRefs = []
+    inputSizes = []
+    for farg in fargs:
+        if type(farg) == DropletReference:
+            inputRefs.append(farg.key)
+        else:
+            inputSizes.append(farg.size * 8)
+    sizes.append(inputRefs)
+    sizes.append(inputSizes)
 
     result = _exec_func_causal(kvs, function, fargs, user_lib, schedule,
                                key_version_locations, dependencies)
+    sizes.append(result.size * 8)
 
     # Create a new trigger with the schedule ID and results of this execution.
     new_trigger = _construct_trigger(schedule.id, fname, result)
