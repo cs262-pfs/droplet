@@ -496,9 +496,9 @@ class HeftDropletSchedulerPolicy(BaseDropletSchedulerPolicy):
         try:
             lat = self.kvs_client.get(s)[s]
         except:
-            break
+            return
         if not lat:
-            break
+            return
 
         # TODO: Make sure this is imported correctly (check above)
         ksd = KeySizeData()
