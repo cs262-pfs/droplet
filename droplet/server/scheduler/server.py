@@ -26,9 +26,6 @@ from droplet.server.scheduler.create import (
     create_function,
     delete_dag
 )
-from droplet.server.scheduler.predictor.cost_predictor import (
-    CostPredictors
-)
 from droplet.server.scheduler.policy.default_policy import (
     DefaultDropletSchedulerPolicy
 )
